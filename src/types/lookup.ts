@@ -2,16 +2,18 @@
 
 export interface Lookup {
   id: number
-  category: string | null
-  value: string | null
+  type: string | null
   code: string | null
-  is_active: boolean | null
+  description: string | null
+  status: string | null
   list_order: number | null
+  created_at?: string
+  updated_at?: string
 }
 
 export interface LookupFilters {
   search: string
-  category: string | 'All'
+  type: string | 'All'
   status: string | 'All'
   page: number
   items: number

@@ -48,7 +48,7 @@ export async function getSchedules(filters: ScheduleFilters, branchIds?: number[
   }
 
   // Sorting
-  const sortColumn = filters.sort || 'start'
+  const sortColumn = filters.sort === 'start' ? 'start_time' : (filters.sort || 'start_time')
   const ascending = filters.sortDirection === 'asc'
   query = query.order(sortColumn, { ascending })
 
@@ -86,8 +86,8 @@ export async function getSchedulesForCalendar(branchIds?: number[], dateFrom?: s
     .from('w_schedules')
     .select(`
       id,
-      start,
-      end,
+      start_time,
+      end_time,
       status,
       w_services!w_schedules_service_id_fkey (service_code),
       instructor:w_contacts!w_schedules_employee_id_fkey (nick_name)
@@ -98,10 +98,10 @@ export async function getSchedulesForCalendar(branchIds?: number[], dateFrom?: s
   }
 
   if (dateFrom) {
-    query = query.gte('start', dateFrom)
+    query = query.gte('start_time', dateFrom)
   }
   if (dateTo) {
-    query = query.lte('start', dateTo)
+    query = query.lte('start_time', dateTo)
   }
 
   const { data, error } = await query
@@ -111,31 +111,10 @@ export async function getSchedulesForCalendar(branchIds?: number[], dateFrom?: s
     throw error
   }
 
-  // Also fetch student info from junction table
-  const scheduleIds = (data || []).map(s => s.id)
-  const { data: studentSchedules } = await supabase
-    .from('w_student_schedules')
-    .select(`
-      schedule_id,
-      w_contacts!w_student_schedules_student_id_fkey (first_name, last_name)
-    `)
-    .in('schedule_id', scheduleIds)
-
-  // Group students by schedule
-  const studentsBySchedule: Record<number, string[]> = {}
-  ;(studentSchedules || []).forEach((ss: any) => {
-    if (!studentsBySchedule[ss.schedule_id]) {
-      studentsBySchedule[ss.schedule_id] = []
-    }
-    const name = ss.w_contacts?.last_name || ss.w_contacts?.first_name || 'Unknown'
-    studentsBySchedule[ss.schedule_id].push(name)
-  })
-
   // Transform to calendar events
   const events: CalendarEvent[] = (data || []).map((item: any) => {
-    const students = studentsBySchedule[item.id] || []
-    const studentNames = students.slice(0, 2).join(', ') + (students.length > 2 ? ` +${students.length - 2}` : '')
     const serviceCode = item.w_services?.service_code || ''
+    const instructorName = item.instructor?.nick_name || ''
 
     // Color based on status
     const statusColors: Record<string, string> = {
@@ -147,15 +126,15 @@ export async function getSchedulesForCalendar(branchIds?: number[], dateFrom?: s
 
     return {
       id: String(item.id),
-      title: studentNames ? `${studentNames} - ${serviceCode}` : serviceCode,
-      start: item.start,
-      end: item.end,
+      title: instructorName ? `${instructorName} - ${serviceCode}` : serviceCode,
+      start: item.start_time,
+      end: item.end_time,
       backgroundColor: statusColors[item.status] || '#0d9488',
       borderColor: statusColors[item.status] || '#0d9488',
       extendedProps: {
         schedule_id: item.id,
         service_code: serviceCode,
-        instructor_name: item.instructor?.nick_name || '',
+        instructor_name: instructorName,
         status: item.status,
       }
     }
@@ -197,35 +176,16 @@ export async function getScheduleById(id: number): Promise<Schedule | null> {
   }
 }
 
-export async function getStudentsBySchedule(scheduleId: number): Promise<StudentSchedule[]> {
-  const { data, error } = await supabase
-    .from('w_student_schedules')
-    .select(`
-      *,
-      w_contacts!w_student_schedules_student_id_fkey (id, first_name, last_name)
-    `)
-    .eq('schedule_id', scheduleId)
-
-  if (error) {
-    console.error('Error fetching student schedules:', error)
-    return []
-  }
-
-  return (data || []).map((item: any) => ({
-    ...item,
-    student_name: [item.w_contacts?.first_name, item.w_contacts?.last_name].filter(Boolean).join(' ')
-  }))
-}
-
 export async function createSchedule(schedule: Partial<Schedule>, studentIds: number[]): Promise<Schedule> {
   const { data, error } = await supabase
     .from('w_schedules')
     .insert({
       branch_id: schedule.branch_id,
       date: schedule.date,
+      student_id: studentIds[0] || schedule.student_id,
       service_id: schedule.service_id,
-      start: schedule.start,
-      end: schedule.end,
+      start_time: schedule.start_time || schedule.start,
+      end_time: schedule.end_time || schedule.end,
       employee_id: schedule.employee_id,
       vehicle_id: schedule.vehicle_id,
       room_id: schedule.room_id,
@@ -236,18 +196,6 @@ export async function createSchedule(schedule: Partial<Schedule>, studentIds: nu
 
   if (error) throw error
 
-  // Add student-schedule relationships
-  if (studentIds.length > 0) {
-    const studentSchedules = studentIds.map(studentId => ({
-      schedule_id: data.id,
-      student_id: studentId,
-    }))
-
-    await supabase
-      .from('w_student_schedules')
-      .insert(studentSchedules)
-  }
-
   return data
 }
 
@@ -257,9 +205,10 @@ export async function updateSchedule(id: number, schedule: Partial<Schedule>, st
     .update({
       branch_id: schedule.branch_id,
       date: schedule.date,
+      student_id: studentIds?.[0] || schedule.student_id,
       service_id: schedule.service_id,
-      start: schedule.start,
-      end: schedule.end,
+      start_time: schedule.start_time || schedule.start,
+      end_time: schedule.end_time || schedule.end,
       employee_id: schedule.employee_id,
       vehicle_id: schedule.vehicle_id,
       room_id: schedule.room_id,
@@ -271,37 +220,10 @@ export async function updateSchedule(id: number, schedule: Partial<Schedule>, st
 
   if (error) throw error
 
-  // Update student-schedule relationships if provided
-  if (studentIds !== undefined) {
-    // Delete existing
-    await supabase
-      .from('w_student_schedules')
-      .delete()
-      .eq('schedule_id', id)
-
-    // Add new
-    if (studentIds.length > 0) {
-      const studentSchedules = studentIds.map(studentId => ({
-        schedule_id: id,
-        student_id: studentId,
-      }))
-
-      await supabase
-        .from('w_student_schedules')
-        .insert(studentSchedules)
-    }
-  }
-
   return data
 }
 
 export async function deleteSchedule(id: number): Promise<boolean> {
-  // Delete student-schedule relationships first
-  await supabase
-    .from('w_student_schedules')
-    .delete()
-    .eq('schedule_id', id)
-
   const { error } = await supabase
     .from('w_schedules')
     .delete()
@@ -312,12 +234,6 @@ export async function deleteSchedule(id: number): Promise<boolean> {
 }
 
 export async function deleteSchedules(ids: number[]): Promise<boolean> {
-  // Delete student-schedule relationships first
-  await supabase
-    .from('w_student_schedules')
-    .delete()
-    .in('schedule_id', ids)
-
   const { error } = await supabase
     .from('w_schedules')
     .delete()

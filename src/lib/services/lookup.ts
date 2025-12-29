@@ -8,23 +8,23 @@ export async function getLookups(filters: LookupFilters) {
     .from('w_lookup')
     .select('*', { count: 'exact' })
 
-  // Category filter
-  if (filters.category !== 'All') {
-    query = query.eq('category', filters.category)
+  // Type filter
+  if (filters.type !== 'All') {
+    query = query.eq('type', filters.type)
   }
 
   // Status filter
   if (filters.status !== 'All') {
-    query = query.eq('is_active', filters.status === 'A')
+    query = query.eq('status', filters.status === 'A' ? 'active' : 'inactive')
   }
 
   // Search filter
   if (filters.search) {
-    query = query.or(`category.ilike.%${filters.search}%,value.ilike.%${filters.search}%,code.ilike.%${filters.search}%`)
+    query = query.or(`type.ilike.%${filters.search}%,description.ilike.%${filters.search}%,code.ilike.%${filters.search}%`)
   }
 
   // Sorting
-  const sortColumn = filters.sort || 'category'
+  const sortColumn = filters.sort || 'type'
   const ascending = filters.sortDirection === 'asc'
   query = query.order(sortColumn, { ascending })
 
@@ -48,17 +48,17 @@ export async function getLookups(filters: LookupFilters) {
   return { data: data as Lookup[] || [], count: count || 0 }
 }
 
-export async function getCategories(): Promise<string[]> {
+export async function getTypes(): Promise<string[]> {
   const { data, error } = await supabase
     .from('w_lookup')
-    .select('category')
-    .order('category')
+    .select('type')
+    .order('type')
 
   if (error) throw error
 
-  // Get unique categories
-  const categories = [...new Set((data || []).map(item => item.category).filter(Boolean))]
-  return categories as string[]
+  // Get unique types
+  const types = [...new Set((data || []).map(item => item.type).filter(Boolean))]
+  return types as string[]
 }
 
 export async function getLookupById(id: number): Promise<Lookup | null> {
@@ -80,10 +80,10 @@ export async function createLookup(lookup: Partial<Lookup>): Promise<Lookup> {
   const { data, error } = await supabase
     .from('w_lookup')
     .insert({
-      category: lookup.category,
-      value: lookup.value,
+      type: lookup.type,
       code: lookup.code,
-      is_active: lookup.is_active ?? true,
+      description: lookup.description,
+      status: lookup.status ?? 'active',
       list_order: lookup.list_order || 0,
     })
     .select()
@@ -97,10 +97,10 @@ export async function updateLookup(id: number, lookup: Partial<Lookup>): Promise
   const { data, error } = await supabase
     .from('w_lookup')
     .update({
-      category: lookup.category,
-      value: lookup.value,
+      type: lookup.type,
       code: lookup.code,
-      is_active: lookup.is_active,
+      description: lookup.description,
+      status: lookup.status,
       list_order: lookup.list_order,
     })
     .eq('id', id)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -18,7 +18,6 @@ import {
   getVehicles,
   getRooms,
   getStudentsForScheduling,
-  getStudentsBySchedule,
   getScheduleStatuses,
 } from '@/lib/services/schedules'
 import type { CalendarEvent, Schedule, Instructor, Room } from '@/types/schedule'
@@ -116,11 +115,13 @@ function ScheduleModal({
           room_id: schedule.room_id,
           status: schedule.status || 'confirmed',
         })
-        // Load existing students
-        getStudentsBySchedule(schedule.id).then(ss => {
-          setExistingStudents(ss)
-          setSelectedStudents(ss.map(s => s.student_id))
-        })
+        // Set existing student from schedule's student_id
+        if (schedule.student_id) {
+          setSelectedStudents([schedule.student_id])
+        } else {
+          setSelectedStudents([])
+        }
+        setExistingStudents([])
       } else {
         // Creating new schedule
         const dateStr = selectedDate || new Date().toISOString().split('T')[0]
@@ -446,14 +447,6 @@ function ScheduleViewModal({
   onEdit: () => void
   onDelete: () => void
 }) {
-  const [students, setStudents] = useState<any[]>([])
-
-  useEffect(() => {
-    if (isOpen && schedule) {
-      getStudentsBySchedule(schedule.id).then(setStudents)
-    }
-  }, [isOpen, schedule])
-
   if (!isOpen || !schedule) return null
 
   const statusStyle = statusColors[schedule.status || 'confirmed'] || statusColors.confirmed
@@ -517,16 +510,10 @@ function ScheduleViewModal({
             )}
           </div>
 
-          {students.length > 0 && (
+          {schedule.student_id && (
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide">Students</label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {students.map(s => (
-                  <span key={s.student_id} className="px-3 py-1 bg-teal-50 text-teal-700 rounded-full text-sm">
-                    {s.student_name}
-                  </span>
-                ))}
-              </div>
+              <label className="text-xs text-gray-500 uppercase tracking-wide">Student ID</label>
+              <p className="font-medium text-gray-800">#{schedule.student_id}</p>
             </div>
           )}
         </div>
@@ -590,7 +577,7 @@ export default function SchedulesPage() {
     completed: 0,
   })
 
-  const branchIds = profile?.branches || []
+  const branchIds = useMemo(() => profile?.branches || [], [profile?.branches])
 
   const loadEvents = useCallback(async () => {
     setLoading(true)

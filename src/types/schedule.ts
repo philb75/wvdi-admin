@@ -6,8 +6,11 @@ export interface Schedule {
   date: string | null
   student_id: number | null
   service_id: number | null
-  start: string | null
-  end: string | null
+  start_time: string | null
+  end_time: string | null
+  // Legacy aliases (for form compatibility)
+  start?: string | null
+  end?: string | null
   employee_id: number | null
   vehicle_id: number | null
   room_id: number | null

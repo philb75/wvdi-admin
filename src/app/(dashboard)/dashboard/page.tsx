@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import DashboardStats from '@/components/dashboard/DashboardStats'
 
 // Dynamic imports for chart components to avoid SSR issues with Chart.js
 const SalesChart = dynamic(() => import('@/components/dashboard/SalesChart'), { ssr: false })
@@ -16,6 +17,8 @@ export default function DashboardPage() {
           <span>Dashboard</span>
         </nav>
       </div>
+
+      <DashboardStats />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <SalesChart />

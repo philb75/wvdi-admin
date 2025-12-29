@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   getVehicles,
   createVehicle,
@@ -372,7 +372,7 @@ export default function VehiclesPage() {
     sold: 0,
   })
 
-  const branchIds = profile?.branches || []
+  const branchIds = useMemo(() => profile?.branches || [], [profile?.branches])
 
   const loadVehicles = useCallback(async () => {
     setLoading(true)

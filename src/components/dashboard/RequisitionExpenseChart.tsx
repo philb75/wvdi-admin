@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -14,7 +14,7 @@ import {
   Legend,
 } from 'chart.js'
 import { Chart } from 'react-chartjs-2'
-import { format, subDays } from 'date-fns'
+import { getRequisitionExpense, getBranches, type Branch } from '@/lib/services/dashboard'
 
 ChartJS.register(
   CategoryScale,
@@ -28,131 +28,114 @@ ChartJS.register(
   Legend
 )
 
-interface Branch {
-  id: number
-  name: string
-}
-
-interface RequisitionExpenseChartProps {
-  branches?: Branch[]
-}
-
-// Generate mock data for demonstration
-const generateMockData = (mode: string, branch: string, filters: Record<string, boolean>) => {
-  const labels: string[] = []
-  const numPoints = mode === 'D' ? 30 : mode === 'W' ? 12 : mode === 'M' ? 12 : 5
-
-  for (let i = numPoints - 1; i >= 0; i--) {
-    if (mode === 'D') {
-      labels.push(format(subDays(new Date(), i), 'MMM dd'))
-    } else if (mode === 'M') {
-      const date = new Date()
-      date.setMonth(date.getMonth() - i)
-      labels.push(format(date, 'MMM yy'))
-    } else if (mode === 'Y') {
-      labels.push(String(new Date().getFullYear() - i))
-    } else {
-      labels.push(`Week ${numPoints - i}`)
-    }
-  }
-
-  const datasets: any[] = []
-
-  // Generate expense line
-  const expenseData = []
-  for (let i = 0; i < numPoints; i++) {
-    expenseData.push(Math.floor(Math.random() * 40000) + 5000)
-  }
-  datasets.push({
-    type: 'line' as const,
-    label: `${branch === 'All' ? 'All Branches' : branch} Expense`,
-    data: expenseData,
-    borderColor: '#475569',
-    backgroundColor: '#475569',
-    tension: 0.3,
-  })
-
-  // Generate requisition status bars
-  if (filters.paid) {
-    const paidData = []
-    for (let i = 0; i < numPoints; i++) {
-      paidData.push(Math.floor(Math.random() * 30000) + 5000)
-    }
-    datasets.push({
-      type: 'bar' as const,
-      label: 'Paid',
-      data: paidData,
-      backgroundColor: 'rgba(69, 208, 224, 0.5)',
-      borderColor: 'rgba(69, 208, 224, 0.5)',
-    })
-  }
-
-  if (filters.approved) {
-    const approvedData = []
-    for (let i = 0; i < numPoints; i++) {
-      approvedData.push(Math.floor(Math.random() * 25000) + 3000)
-    }
-    datasets.push({
-      type: 'bar' as const,
-      label: 'Approved',
-      data: approvedData,
-      backgroundColor: 'rgba(9, 131, 176, 0.5)',
-      borderColor: 'rgba(9, 131, 176, 0.5)',
-    })
-  }
-
-  if (filters.submitted) {
-    const submittedData = []
-    for (let i = 0; i < numPoints; i++) {
-      submittedData.push(Math.floor(Math.random() * 20000) + 2000)
-    }
-    datasets.push({
-      type: 'bar' as const,
-      label: 'Submitted',
-      data: submittedData,
-      backgroundColor: 'rgba(210, 47, 232, 0.5)',
-      borderColor: 'rgba(210, 47, 232, 0.5)',
-    })
-  }
-
-  if (filters.draft) {
-    const draftData = []
-    for (let i = 0; i < numPoints; i++) {
-      draftData.push(Math.floor(Math.random() * 15000) + 1000)
-    }
-    datasets.push({
-      type: 'bar' as const,
-      label: 'Draft',
-      data: draftData,
-      backgroundColor: 'rgba(193, 196, 234, 0.5)',
-      borderColor: 'rgba(193, 196, 234, 0.5)',
-    })
-  }
-
-  return { labels, datasets }
-}
-
-export default function RequisitionExpenseChart({ branches }: RequisitionExpenseChartProps) {
+export default function RequisitionExpenseChart() {
   const [mode, setMode] = useState('D')
-  const [branch, setBranch] = useState('All')
+  const [branch, setBranch] = useState<number | 'All'>('All')
+  const [branches, setBranches] = useState<Branch[]>([])
   const [filters, setFilters] = useState({
     draft: false,
     submitted: false,
     approved: true,
     paid: true,
   })
-  const [chartData, setChartData] = useState(() => generateMockData('D', 'All', { draft: false, submitted: false, approved: true, paid: true }))
+  const [chartData, setChartData] = useState<any>({ labels: [], datasets: [] })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleChange = (newMode: string, newBranch: string, newFilters: { draft: boolean; submitted: boolean; approved: boolean; paid: boolean }) => {
-    setMode(newMode)
-    setBranch(newBranch)
-    setFilters(newFilters)
-    setChartData(generateMockData(newMode, newBranch, newFilters))
+  useEffect(() => {
+    loadBranches()
+  }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [mode, branch, filters])
+
+  const loadBranches = async () => {
+    try {
+      const data = await getBranches()
+      setBranches(data)
+    } catch (err) {
+      console.error('Error loading branches:', err)
+    }
+  }
+
+  const loadData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await getRequisitionExpense(mode, branch, filters)
+
+      const branchName = branch === 'All'
+        ? 'All Branches'
+        : branches.find(b => b.id === branch)?.name || 'Selected Branch'
+
+      const datasets: any[] = []
+
+      // Expense line (always shown)
+      datasets.push({
+        type: 'line' as const,
+        label: `${branchName} Expense`,
+        data: data.expense,
+        borderColor: '#475569',
+        backgroundColor: '#475569',
+        tension: 0.3,
+      })
+
+      // Requisition status bars based on filters
+      if (filters.paid) {
+        datasets.push({
+          type: 'bar' as const,
+          label: 'Paid',
+          data: data.paid,
+          backgroundColor: 'rgba(69, 208, 224, 0.5)',
+          borderColor: 'rgba(69, 208, 224, 0.5)',
+        })
+      }
+
+      if (filters.approved) {
+        datasets.push({
+          type: 'bar' as const,
+          label: 'Approved',
+          data: data.approved,
+          backgroundColor: 'rgba(9, 131, 176, 0.5)',
+          borderColor: 'rgba(9, 131, 176, 0.5)',
+        })
+      }
+
+      if (filters.submitted) {
+        datasets.push({
+          type: 'bar' as const,
+          label: 'Submitted',
+          data: data.submitted,
+          backgroundColor: 'rgba(210, 47, 232, 0.5)',
+          borderColor: 'rgba(210, 47, 232, 0.5)',
+        })
+      }
+
+      if (filters.draft) {
+        datasets.push({
+          type: 'bar' as const,
+          label: 'Draft',
+          data: data.draft,
+          backgroundColor: 'rgba(193, 196, 234, 0.5)',
+          borderColor: 'rgba(193, 196, 234, 0.5)',
+        })
+      }
+
+      setChartData({
+        labels: data.labels,
+        datasets,
+      })
+    } catch (err) {
+      console.error('Error loading requisition/expense data:', err)
+      setError('Failed to load data')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const toggleFilter = (filter: string) => {
-    const newFilters = { ...filters, [filter]: !filters[filter as keyof typeof filters] }
-    handleChange(mode, branch, newFilters)
+    setFilters(prev => ({ ...prev, [filter]: !prev[filter as keyof typeof prev] }))
   }
 
   const options = {
@@ -177,13 +160,6 @@ export default function RequisitionExpenseChart({ branches }: RequisitionExpense
     }
   }
 
-  // Mock branches for demonstration
-  const mockBranches = [
-    { id: 1, name: 'Bacolod' },
-    { id: 2, name: 'Kabankalan' },
-    { id: 3, name: 'Dumaguete' },
-  ]
-
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <div className="flex flex-col gap-3 mb-4">
@@ -192,7 +168,7 @@ export default function RequisitionExpenseChart({ branches }: RequisitionExpense
           <div className="flex gap-2">
             <select
               value={mode}
-              onChange={(e) => handleChange(e.target.value, branch, filters)}
+              onChange={(e) => setMode(e.target.value)}
               className="text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="D">Day</option>
@@ -202,12 +178,12 @@ export default function RequisitionExpenseChart({ branches }: RequisitionExpense
             </select>
             <select
               value={branch}
-              onChange={(e) => handleChange(mode, e.target.value, filters)}
+              onChange={(e) => setBranch(e.target.value === 'All' ? 'All' : Number(e.target.value))}
               className="text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
-              <option value="All">All</option>
-              {(branches || mockBranches).map((b) => (
-                <option key={b.id} value={b.name}>
+              <option value="All">All Branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
                   {b.name}
                 </option>
               ))}
@@ -228,7 +204,17 @@ export default function RequisitionExpenseChart({ branches }: RequisitionExpense
           ))}
         </div>
       </div>
-      <Chart type="bar" options={options} data={chartData} />
+      {loading ? (
+        <div className="h-64 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500"></div>
+        </div>
+      ) : error ? (
+        <div className="h-64 flex items-center justify-center text-red-500">
+          {error}
+        </div>
+      ) : (
+        <Chart type="bar" options={options} data={chartData} />
+      )}
     </div>
   )
 }

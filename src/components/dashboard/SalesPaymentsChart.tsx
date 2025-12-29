@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -14,7 +14,7 @@ import {
   Legend,
 } from 'chart.js'
 import { Chart } from 'react-chartjs-2'
-import { format, subDays } from 'date-fns'
+import { getSalesPayments, getBranches, type Branch } from '@/lib/services/dashboard'
 
 ChartJS.register(
   CategoryScale,
@@ -28,77 +28,69 @@ ChartJS.register(
   Legend
 )
 
-interface Branch {
-  id: number
-  name: string
-}
+export default function SalesPaymentsChart() {
+  const [mode, setMode] = useState('D')
+  const [branch, setBranch] = useState<number | 'All'>('All')
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [chartData, setChartData] = useState<any>({ labels: [], datasets: [] })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-interface SalesPaymentsChartProps {
-  branches?: Branch[]
-}
+  useEffect(() => {
+    loadBranches()
+  }, [])
 
-// Generate mock data for demonstration
-const generateMockData = (mode: string, branch: string) => {
-  const labels: string[] = []
-  const salesData: number[] = []
-  const paymentsData: number[] = []
+  useEffect(() => {
+    loadData()
+  }, [mode, branch])
 
-  // Generate labels based on mode
-  const numPoints = mode === 'D' ? 30 : mode === 'W' ? 12 : mode === 'M' ? 12 : 5
-
-  for (let i = numPoints - 1; i >= 0; i--) {
-    if (mode === 'D') {
-      labels.push(format(subDays(new Date(), i), 'MMM dd'))
-    } else if (mode === 'M') {
-      const date = new Date()
-      date.setMonth(date.getMonth() - i)
-      labels.push(format(date, 'MMM yy'))
-    } else if (mode === 'Y') {
-      labels.push(String(new Date().getFullYear() - i))
-    } else {
-      labels.push(`Week ${numPoints - i}`)
+  const loadBranches = async () => {
+    try {
+      const data = await getBranches()
+      setBranches(data)
+    } catch (err) {
+      console.error('Error loading branches:', err)
     }
   }
 
-  // Generate random data
-  for (let i = 0; i < numPoints; i++) {
-    salesData.push(Math.floor(Math.random() * 80000) + 20000)
-    paymentsData.push(Math.floor(Math.random() * 60000) + 15000)
-  }
+  const loadData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await getSalesPayments(mode, branch)
 
-  return {
-    labels,
-    datasets: [
-      {
-        type: 'line' as const,
-        label: `${branch === 'All' ? 'All Branches' : branch} Sales`,
-        data: salesData,
-        borderColor: '#14b8a6',
-        backgroundColor: '#14b8a6',
-        tension: 0.3,
-        yAxisID: 'y',
-      },
-      {
-        type: 'bar' as const,
-        label: `${branch === 'All' ? 'All Branches' : branch} Payments`,
-        data: paymentsData,
-        backgroundColor: 'rgba(20, 184, 166, 0.4)',
-        borderColor: 'rgba(20, 184, 166, 0.4)',
-        yAxisID: 'y',
-      },
-    ],
-  }
-}
+      const branchName = branch === 'All'
+        ? 'All Branches'
+        : branches.find(b => b.id === branch)?.name || 'Selected Branch'
 
-export default function SalesPaymentsChart({ branches }: SalesPaymentsChartProps) {
-  const [mode, setMode] = useState('D')
-  const [branch, setBranch] = useState('All')
-  const [chartData, setChartData] = useState(() => generateMockData('D', 'All'))
-
-  const handleChange = (newMode: string, newBranch: string) => {
-    setMode(newMode)
-    setBranch(newBranch)
-    setChartData(generateMockData(newMode, newBranch))
+      setChartData({
+        labels: data.labels,
+        datasets: [
+          {
+            type: 'line' as const,
+            label: `${branchName} Sales`,
+            data: data.salesData,
+            borderColor: '#14b8a6',
+            backgroundColor: '#14b8a6',
+            tension: 0.3,
+            yAxisID: 'y',
+          },
+          {
+            type: 'bar' as const,
+            label: `${branchName} Payments`,
+            data: data.paymentsData,
+            backgroundColor: 'rgba(20, 184, 166, 0.4)',
+            borderColor: 'rgba(20, 184, 166, 0.4)',
+            yAxisID: 'y',
+          },
+        ],
+      })
+    } catch (err) {
+      console.error('Error loading sales/payments data:', err)
+      setError('Failed to load data')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const options = {
@@ -123,13 +115,6 @@ export default function SalesPaymentsChart({ branches }: SalesPaymentsChartProps
     }
   }
 
-  // Mock branches for demonstration
-  const mockBranches = [
-    { id: 1, name: 'Bacolod' },
-    { id: 2, name: 'Kabankalan' },
-    { id: 3, name: 'Dumaguete' },
-  ]
-
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <div className="flex items-center justify-between mb-4">
@@ -137,7 +122,7 @@ export default function SalesPaymentsChart({ branches }: SalesPaymentsChartProps
         <div className="flex gap-2">
           <select
             value={mode}
-            onChange={(e) => handleChange(e.target.value, branch)}
+            onChange={(e) => setMode(e.target.value)}
             className="text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-teal-500"
           >
             <option value="D">Day</option>
@@ -147,19 +132,29 @@ export default function SalesPaymentsChart({ branches }: SalesPaymentsChartProps
           </select>
           <select
             value={branch}
-            onChange={(e) => handleChange(mode, e.target.value)}
+            onChange={(e) => setBranch(e.target.value === 'All' ? 'All' : Number(e.target.value))}
             className="text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-teal-500"
           >
-            <option value="All">All</option>
-            {(branches || mockBranches).map((b) => (
-              <option key={b.id} value={b.name}>
+            <option value="All">All Branches</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
                 {b.name}
               </option>
             ))}
           </select>
         </div>
       </div>
-      <Chart type="bar" options={options} data={chartData} />
+      {loading ? (
+        <div className="h-64 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500"></div>
+        </div>
+      ) : error ? (
+        <div className="h-64 flex items-center justify-center text-red-500">
+          {error}
+        </div>
+      ) : (
+        <Chart type="bar" options={options} data={chartData} />
+      )}
     </div>
   )
 }

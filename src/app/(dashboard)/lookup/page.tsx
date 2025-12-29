@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   getLookups,
-  getCategories,
+  getTypes,
   createLookup,
   updateLookup,
   deleteLookup,
@@ -98,41 +98,41 @@ function LookupModal({
   onSave,
   lookup,
   mode,
-  categories
+  types
 }: {
   isOpen: boolean
   onClose: () => void
   onSave: (lookup: Partial<Lookup>) => Promise<void>
   lookup: Lookup | null
   mode: 'create' | 'edit'
-  categories: string[]
+  types: string[]
 }) {
   const [formData, setFormData] = useState<Partial<Lookup>>({
-    category: '',
-    value: '',
+    type: '',
+    description: '',
     code: '',
-    is_active: true,
+    status: 'active',
     list_order: 0
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [newCategory, setNewCategory] = useState('')
-  const [showNewCategory, setShowNewCategory] = useState(false)
+  const [newType, setNewType] = useState('')
+  const [showNewType, setShowNewType] = useState(false)
 
   useEffect(() => {
     if (lookup && mode === 'edit') {
       setFormData({ ...lookup })
-      setShowNewCategory(false)
+      setShowNewType(false)
     } else {
       setFormData({
-        category: '',
-        value: '',
+        type: '',
+        description: '',
         code: '',
-        is_active: true,
+        status: 'active',
         list_order: 0
       })
-      setShowNewCategory(false)
-      setNewCategory('')
+      setShowNewType(false)
+      setNewType('')
     }
     setErrors({})
   }, [lookup, mode, isOpen])
@@ -140,13 +140,13 @@ function LookupModal({
   const validate = () => {
     const newErrors: Record<string, string> = {}
 
-    const category = showNewCategory ? newCategory : formData.category
-    if (!category?.trim()) {
-      newErrors.category = 'Category is required'
+    const type = showNewType ? newType : formData.type
+    if (!type?.trim()) {
+      newErrors.type = 'Type is required'
     }
 
-    if (!formData.value?.trim()) {
-      newErrors.value = 'Value is required'
+    if (!formData.description?.trim()) {
+      newErrors.description = 'Description is required'
     }
 
     setErrors(newErrors)
@@ -161,7 +161,7 @@ function LookupModal({
       if (validate()) {
         const dataToSave = {
           ...formData,
-          category: showNewCategory ? newCategory : formData.category
+          type: showNewType ? newType : formData.type
         }
         await onSave(dataToSave)
         onClose()
@@ -188,68 +188,68 @@ function LookupModal({
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Category */}
+            {/* Type */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Category <span className="text-red-500">*</span>
+                Type <span className="text-red-500">*</span>
               </label>
-              {!showNewCategory ? (
+              {!showNewType ? (
                 <div className="space-y-2">
                   <select
-                    value={formData.category || ''}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className={`w-full px-4 py-2.5 rounded-lg border ${errors.category ? 'border-red-300' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white`}
+                    value={formData.type || ''}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className={`w-full px-4 py-2.5 rounded-lg border ${errors.type ? 'border-red-300' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white`}
                   >
-                    <option value="">Select category...</option>
-                    {categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
+                    <option value="">Select type...</option>
+                    {types.map(t => (
+                      <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
                   <button
                     type="button"
-                    onClick={() => setShowNewCategory(true)}
+                    onClick={() => setShowNewType(true)}
                     className="text-sm text-teal-600 hover:text-teal-700 font-medium"
                   >
-                    + Create new category
+                    + Create new type
                   </button>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <input
                     type="text"
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    className={`w-full px-4 py-2.5 rounded-lg border ${errors.category ? 'border-red-300' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-teal-500`}
-                    placeholder="Enter new category name"
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value)}
+                    className={`w-full px-4 py-2.5 rounded-lg border ${errors.type ? 'border-red-300' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-teal-500`}
+                    placeholder="Enter new type name"
                   />
                   <button
                     type="button"
                     onClick={() => {
-                      setShowNewCategory(false)
-                      setNewCategory('')
+                      setShowNewType(false)
+                      setNewType('')
                     }}
                     className="text-sm text-slate-500 hover:text-slate-700"
                   >
-                    Use existing category
+                    Use existing type
                   </button>
                 </div>
               )}
-              {errors.category && <p className="mt-1 text-sm text-red-500">{errors.category}</p>}
+              {errors.type && <p className="mt-1 text-sm text-red-500">{errors.type}</p>}
             </div>
 
-            {/* Value */}
+            {/* Description */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Value <span className="text-red-500">*</span>
+                Description <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                value={formData.value || ''}
-                onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                className={`w-full px-4 py-2.5 rounded-lg border ${errors.value ? 'border-red-300' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-teal-500`}
-                placeholder="Enter value"
+                value={formData.description || ''}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className={`w-full px-4 py-2.5 rounded-lg border ${errors.description ? 'border-red-300' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-teal-500`}
+                placeholder="Enter description"
               />
-              {errors.value && <p className="mt-1 text-sm text-red-500">{errors.value}</p>}
+              {errors.description && <p className="mt-1 text-sm text-red-500">{errors.description}</p>}
             </div>
 
             {/* Code */}
@@ -285,8 +285,8 @@ function LookupModal({
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.is_active ?? true}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  checked={formData.status === 'active'}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.checked ? 'active' : 'inactive' })}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-500"></div>
@@ -380,15 +380,15 @@ function DeleteModal({
 export default function LookupPage() {
   const [lookups, setLookups] = useState<Lookup[]>([])
   const [totalCount, setTotalCount] = useState(0)
-  const [categories, setCategories] = useState<string[]>([])
+  const [types, setTypes] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState<LookupFilters>({
     search: '',
-    category: 'All',
+    type: 'All',
     status: 'All',
     page: 1,
     items: 15,
-    sort: 'category',
+    sort: 'type',
     sortDirection: 'asc'
   })
 
@@ -403,21 +403,21 @@ export default function LookupPage() {
 
   // Stats
   const stats = useMemo(() => {
-    const active = lookups.filter(l => l.is_active).length
-    const inactive = lookups.filter(l => !l.is_active).length
-    return { totalCount, active, inactive, categoryCount: categories.length }
-  }, [lookups, totalCount, categories])
+    const active = lookups.filter(l => l.status === 'active').length
+    const inactive = lookups.filter(l => l.status !== 'active').length
+    return { totalCount, active, inactive, typeCount: types.length }
+  }, [lookups, totalCount, types])
 
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const [lookupsResult, categoriesData] = await Promise.all([
+      const [lookupsResult, typesData] = await Promise.all([
         getLookups(filters),
-        getCategories()
+        getTypes()
       ])
       setLookups(lookupsResult.data)
       setTotalCount(lookupsResult.count)
-      setCategories(categoriesData)
+      setTypes(typesData)
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -513,7 +513,7 @@ export default function LookupPage() {
     return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Inactive</span>
   }
 
-  const getCategoryColor = (category: string | null) => {
+  const getTypeColor = (type: string | null) => {
     const colors = [
       'bg-blue-100 text-blue-800',
       'bg-purple-100 text-purple-800',
@@ -524,7 +524,7 @@ export default function LookupPage() {
       'bg-emerald-100 text-emerald-800',
       'bg-orange-100 text-orange-800'
     ]
-    const index = category ? Math.abs(category.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % colors.length : 0
+    const index = type ? Math.abs(type.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % colors.length : 0
     return colors[index]
   }
 
@@ -554,8 +554,8 @@ export default function LookupPage() {
           gradient="bg-gradient-to-br from-teal-400 to-teal-600"
         />
         <StatCard
-          title="Categories"
-          value={stats.categoryCount}
+          title="Types"
+          value={stats.typeCount}
           icon={<TagIcon className="w-6 h-6" />}
           gradient="bg-gradient-to-br from-purple-400 to-purple-600"
         />
@@ -589,15 +589,15 @@ export default function LookupPage() {
               />
             </div>
 
-            {/* Category Filter */}
+            {/* Type Filter */}
             <select
-              value={filters.category}
-              onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value, page: 1 }))}
+              value={filters.type}
+              onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value, page: 1 }))}
               className="px-4 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm bg-white"
             >
-              <option value="All">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+              <option value="All">All Types</option>
+              {types.map(t => (
+                <option key={t} value={t}>{t}</option>
               ))}
             </select>
 
@@ -647,22 +647,22 @@ export default function LookupPage() {
                 </th>
                 <th
                   className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer hover:text-slate-900"
-                  onClick={() => handleSort('category')}
+                  onClick={() => handleSort('type')}
                 >
                   <div className="flex items-center gap-1">
-                    Category
-                    {filters.sort === 'category' && (
+                    Type
+                    {filters.sort === 'type' && (
                       <ChevronIcon direction={filters.sortDirection === 'asc' ? 'up' : 'down'} />
                     )}
                   </div>
                 </th>
                 <th
                   className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer hover:text-slate-900"
-                  onClick={() => handleSort('value')}
+                  onClick={() => handleSort('description')}
                 >
                   <div className="flex items-center gap-1">
-                    Value
-                    {filters.sort === 'value' && (
+                    Description
+                    {filters.sort === 'description' && (
                       <ChevronIcon direction={filters.sortDirection === 'asc' ? 'up' : 'down'} />
                     )}
                   </div>
@@ -733,18 +733,18 @@ export default function LookupPage() {
                       />
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(lookup.category)}`}>
-                        {lookup.category || '-'}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(lookup.type)}`}>
+                        {lookup.type || '-'}
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <span className="font-medium text-slate-900">{lookup.value || '-'}</span>
+                      <span className="font-medium text-slate-900">{lookup.description || '-'}</span>
                     </td>
                     <td className="px-4 py-4">
                       <span className="text-sm text-slate-600 font-mono">{lookup.code || '-'}</span>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      {getStatusBadge(lookup.is_active)}
+                      {getStatusBadge(lookup.status === 'active')}
                     </td>
                     <td className="px-4 py-4 text-center">
                       <span className="text-sm text-slate-600">{lookup.list_order ?? 0}</span>
@@ -824,7 +824,7 @@ export default function LookupPage() {
         onSave={handleSave}
         lookup={editingLookup}
         mode={modalMode}
-        categories={categories}
+        types={types}
       />
 
       <DeleteModal
